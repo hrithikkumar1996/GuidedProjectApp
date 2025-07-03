@@ -2,6 +2,8 @@
 using Library.ApplicationCore.Entities;
 using Library.ApplicationCore.Enums;
 using Library.Console;
+using Library.Infrastructure.Data;
+
 
 public class ConsoleApp
 {
@@ -242,51 +244,36 @@ public ConsoleApp(ILoanService loanService, IPatronService patronService, IPatro
 
     async Task<ConsoleState> SearchBooks()
     {
-        string? bookTitle = null;
-        while (string.IsNullOrWhiteSpace(bookTitle))
-        {
-            Console.Write("Enter a book title to search for: ");
-            bookTitle = Console.ReadLine();
-        }
-
-        await _jsonData.EnsureDataLoaded();
-        // Find the book by title (case-insensitive)
-        var book = _jsonData.Books?.FirstOrDefault(b => b.Title.Equals(bookTitle, StringComparison.OrdinalIgnoreCase));
+        string bookTitle = ReadBookTitle();
+        Book? book = _jsonData.SearchBookByTitle(bookTitle);
         if (book == null)
         {
-            Console.WriteLine($"No book found with the title \"{bookTitle}\".");
+            Console.WriteLine($"No book found with title: {bookTitle}");
             return ConsoleState.PatronDetails;
         }
-
-        // Find all book items for this book
-        var bookItems = _jsonData.BookItems?.Where(bi => bi.BookId == book.Id).ToList();
-        if (bookItems == null || bookItems.Count == 0)
+        Loan? loan = _jsonData.Loans?.FirstOrDefault(l => l.BookItemId == book.Id && l.ReturnDate == null);
+        if (loan == null)
         {
-            Console.WriteLine($"No physical copies found for \"{book.Title}\".");
-            return ConsoleState.PatronDetails;
+            Console.WriteLine($"{book.Title} is available for loan.");
         }
-
-        // Check if any book item is available (no active loan or returned)
-        bool available = false;
-        foreach (var item in bookItems)
+        else
         {
-            var loan = _jsonData.Loans?.FirstOrDefault(l => l.BookItemId == item.Id && l.ReturnDate == null);
-            if (loan == null)
-            {
-                available = true;
-                break;
-            }
-            else
-            {
-                Console.WriteLine($"\"{book.Title}\" is on loan to another patron. The return due date is {loan.DueDate}.");
-            }
-        }
-        if (available)
-        {
-            Console.WriteLine($"\"{book.Title}\" is available for loan.");
+            Console.WriteLine($"{book.Title} is on loan to another patron. The return due date is {loan.DueDate}.");
         }
         return ConsoleState.PatronDetails;
     }
+
+    static string ReadBookTitle()
+    {
+        string? bookTitle = null;
+        while (string.IsNullOrWhiteSpace(bookTitle))
+        {
+            Console.Write("Enter a book title to search: ");
+            bookTitle = Console.ReadLine();
+        }
+        return bookTitle;
+    }
+
 
 
     async Task<ConsoleState> LoanDetails()
